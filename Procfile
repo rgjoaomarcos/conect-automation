@@ -1,0 +1,1 @@
+worker: python conect_productivity_automation.py
