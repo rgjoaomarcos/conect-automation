@@ -1,1 +1,1 @@
-   worker: python conect_automation.py
+worker: python conect_automation.py
