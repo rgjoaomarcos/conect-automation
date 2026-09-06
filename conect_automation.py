@@ -1,6 +1,6 @@
 """
-CONECT Automation - VERSÃO FINAL
-Gera CSV e salva PERMANENTEMENTE no GitHub via API REST
+CONECT Automation - COM WEB SCRAPING REAL
+Faz login no CONECT, extrai pacientes atendidos e salva no GitHub via API REST
 """
 
 import os
@@ -11,6 +11,12 @@ import base64
 from datetime import datetime, timedelta
 from pathlib import Path
 import csv
+from bs4 import BeautifulSoup
+from openpyxl import load_workbook
+import urllib3
+
+# Desabilitar warnings de SSL (CONECT pode ter certificado auto-assinado)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Configurar logging
 logging.basicConfig(
@@ -29,6 +35,151 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GITHUB_REPO = "rgjoaomarcos/conect-automation"
 GITHUB_BRANCH = "main"
 
+CONECT_LOGIN_URL = "https://modulos.conectew.com.br/conecte/modulos.jsf"
+CONECT_ATENDIMENTOS_URL = "https://modulos.conectew.com.br/conecte/atendimento/site/recepcao/atendimentosRealizados/view.jsf"
+
+# ============================================================================
+# FUNÇÕES DE CONECT SCRAPING
+# ============================================================================
+
+def fazer_login_conect(session):
+    """Faz login no CONECT e retorna sessão autenticada"""
+    try:
+        logger.info("🔐 Fazendo login no CONECT...")
+        
+        # Acessar página de login primeira vez para pegar cookies/tokens
+        response = session.get(CONECT_LOGIN_URL, verify=False, timeout=10)
+        
+        # Preparar dados de login
+        login_data = {
+            "codigo": "980",
+            "usuario": CONECT_USER,
+            "senha": CONECT_PASS,
+            "j_username": CONECT_USER,
+            "j_password": CONECT_PASS,
+        }
+        
+        # Tentar fazer login
+        response = session.post(CONECT_LOGIN_URL, data=login_data, verify=False, timeout=10)
+        
+        if response.status_code == 200:
+            logger.info("✅ Login realizado com sucesso!")
+            return True
+        else:
+            logger.error(f"❌ Erro no login: Status {response.status_code}")
+            return False
+            
+    except requests.exceptions.Timeout:
+        logger.error("❌ Timeout ao conectar com CONECT")
+        return False
+    except Exception as e:
+        logger.error(f"❌ Erro ao fazer login: {e}")
+        return False
+
+def extrair_medicos_escala_ontem():
+    """Lê o arquivo Excel e retorna lista de médicos de ontem"""
+    try:
+        excel_path = Path("escalas_upa_tabelas_junho_setembro_2026.xlsx")
+        if not excel_path.exists():
+            logger.error("❌ Arquivo de escala não encontrado")
+            return []
+        
+        data_ontem = datetime.now() - timedelta(days=1)
+        data_str = data_ontem.strftime("%d/%m/%Y")
+        
+        logger.info(f"📄 Lendo escala para: {data_str}")
+        
+        wb = load_workbook(excel_path)
+        ws = wb["Todos os plantões"]
+        
+        medicos = []
+        
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            data_plantonista = row[0]
+            medico_nome = row[5]
+            
+            if data_plantonista and medico_nome:
+                try:
+                    if isinstance(data_plantonista, str):
+                        data_formatada = datetime.strptime(data_plantonista, "%d/%m/%Y")
+                    else:
+                        data_formatada = data_plantonista
+                    
+                    if data_formatada.date() == data_ontem.date():
+                        medicos.append(medico_nome)
+                        logger.info(f"  📋 Médico encontrado: {medico_nome}")
+                except:
+                    pass
+        
+        if medicos:
+            logger.info(f"✅ Total de médicos encontrados: {len(medicos)}")
+        else:
+            logger.warning(f"⚠️ Nenhum médico encontrado para {data_str}")
+        
+        return medicos
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao ler escala: {e}")
+        return []
+
+def extrair_atendimentos_medico(session, medico_nome, data_ontem):
+    """Extrai atendimentos de um médico específico no CONECT"""
+    try:
+        logger.info(f"🔍 Buscando atendimentos de {medico_nome}...")
+        
+        data_str = data_ontem.strftime("%d/%m/%Y")
+        
+        params = {
+            "dataInicial": data_str,
+            "dataFinal": data_str,
+            "medico": medico_nome,
+            "filial": "UPA SAO LEOPOLDO MANDIC",
+            "somenteMeus": "false"
+        }
+        
+        response = session.get(CONECT_ATENDIMENTOS_URL, params=params, verify=False, timeout=15)
+        
+        if response.status_code != 200:
+            logger.warning(f"  ⚠️ Status {response.status_code} para {medico_nome}")
+            return []
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        tabelas = soup.find_all('table')
+        atendimentos = []
+        
+        for tabela in tabelas:
+            linhas = tabela.find_all('tr')
+            for linha in linhas[1:]:
+                colunas = linha.find_all('td')
+                if len(colunas) >= 3:
+                    try:
+                        paciente = colunas[0].get_text(strip=True)
+                        hora = colunas[1].get_text(strip=True) if len(colunas) > 1 else ""
+                        descricao = colunas[2].get_text(strip=True) if len(colunas) > 2 else ""
+                        
+                        if paciente:
+                            atendimentos.append({
+                                "medico": medico_nome,
+                                "paciente": paciente,
+                                "hora": hora,
+                                "descricao": descricao,
+                                "data": data_str
+                            })
+                    except:
+                        pass
+        
+        if atendimentos:
+            logger.info(f"  ✅ {len(atendimentos)} atendimento(s) encontrado(s)")
+        else:
+            logger.info(f"  ℹ️  Nenhum atendimento encontrado")
+        
+        return atendimentos
+        
+    except Exception as e:
+        logger.error(f"  ❌ Erro ao extrair atendimentos: {e}")
+        return []
+
 # ============================================================================
 # FUNÇÕES DE GITHUB API
 # ============================================================================
@@ -42,34 +193,27 @@ def salvar_arquivo_github(arquivo_path, arquivo_nome):
         
         logger.info(f"📤 Salvando {arquivo_nome} no GitHub...")
         
-        # Ler arquivo local
         with open(arquivo_path, 'rb') as f:
             arquivo_conteudo = f.read()
         
-        # Caminho no GitHub
         github_path = f"relatorios/{arquivo_nome}"
         
-        # Preparar conteúdo em base64
         content_base64 = base64.b64encode(arquivo_conteudo).decode('utf-8')
         
-        # Headers com autenticação
         headers = {
             "Authorization": f"token {GITHUB_TOKEN}",
             "Accept": "application/vnd.github.v3+json",
             "Content-Type": "application/json"
         }
         
-        # URL da API do GitHub
         url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{github_path}"
         
-        # Preparar payload
         payload = {
             "message": f"Produtividade {arquivo_nome}",
             "content": content_base64,
             "branch": GITHUB_BRANCH
         }
         
-        # Tentar fazer PUT (criar/atualizar)
         response = requests.put(url, json=payload, headers=headers, timeout=10)
         
         if response.status_code in [201, 200]:
@@ -81,12 +225,6 @@ def salvar_arquivo_github(arquivo_path, arquivo_nome):
             logger.error(f"Resposta: {response.text}")
             return False
             
-    except requests.exceptions.Timeout:
-        logger.error("❌ Timeout ao conectar com GitHub")
-        return False
-    except requests.exceptions.ConnectionError:
-        logger.error("❌ Erro de conexão com GitHub")
-        return False
     except Exception as e:
         logger.error(f"❌ Erro ao salvar no GitHub: {e}")
         return False
@@ -99,49 +237,45 @@ def main():
     """Função principal"""
     
     logger.info("=" * 80)
-    logger.info("INICIANDO AUTOMAÇÃO - UPA SÃO LEOPOLDO MANDIC")
+    logger.info("INICIANDO AUTOMAÇÃO CONECT - UPA SÃO LEOPOLDO MANDIC")
     logger.info("=" * 80)
     
-    data_target = datetime.now() - timedelta(days=1)
-    data_str = data_target.strftime("%d/%m/%Y")
+    data_ontem = datetime.now() - timedelta(days=1)
+    data_str = data_ontem.strftime("%d/%m/%Y")
     
-    logger.info(f"Processando: {data_str}")
+    logger.info(f"📅 Processando: {data_str}")
     
-    # Verificar se arquivo existe
-    excel_path = Path("escalas_upa_tabelas_junho_setembro_2026.xlsx")
-    if not excel_path.exists():
-        logger.error("❌ Arquivo de escala não encontrado")
+    session = requests.Session()
+    
+    if not fazer_login_conect(session):
+        logger.error("❌ Falha ao fazer login - abortando")
         return False
     
-    logger.info(f"✅ Arquivo de escala encontrado: {excel_path}")
+    medicos_escala = extrair_medicos_escala_ontem()
+    if not medicos_escala:
+        logger.warning("⚠️ Nenhum médico encontrado para hoje")
+        return False
     
-    # Criar CSV
-    arquivo = f"{data_target.strftime('%Y-%m-%d')}_produtividade.csv"
+    todos_atendimentos = []
+    for medico in medicos_escala:
+        atendimentos = extrair_atendimentos_medico(session, medico, data_ontem)
+        todos_atendimentos.extend(atendimentos)
     
-    # Cabeçalhos
-    headers = ["medico", "paciente", "data_hora"]
+    arquivo = f"{data_ontem.strftime('%Y-%m-%d')}_produtividade.csv"
     
-    # Dados de exemplo (em produção, isso viria do CONECT)
-    dados = [
-        ["Dr. João", "Paciente A", f"{data_str} 08:30"],
-        ["Dr. Maria", "Paciente B", f"{data_str} 09:15"],
-    ]
-    
-    # Salvar CSV localmente
     try:
         with open(arquivo, 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.writer(f)
-            writer.writerow(headers)
-            writer.writerows(dados)
+            writer = csv.DictWriter(f, fieldnames=['medico', 'paciente', 'hora', 'descricao', 'data'])
+            writer.writeheader()
+            writer.writerows(todos_atendimentos)
         
         logger.info(f"✅ Relatório salvo localmente: {arquivo}")
-        logger.info(f"✅ Linhas: {len(dados)}")
+        logger.info(f"✅ Total de atendimentos: {len(todos_atendimentos)}")
         
     except Exception as e:
         logger.error(f"Erro ao salvar CSV: {e}")
         return False
     
-    # Salvar no GitHub
     if GITHUB_TOKEN:
         salvar_arquivo_github(arquivo, arquivo)
     else:
