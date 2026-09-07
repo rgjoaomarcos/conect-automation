@@ -17,3 +17,6 @@ Colunas: médico, paciente, data_hora
 ## 🚀 Deploy
 
 Railway faz o deploy automático a partir do GitHub.
+
+
+<!-- Force redeploy cache bust: 2026-09-06 21:28 UTC -->
