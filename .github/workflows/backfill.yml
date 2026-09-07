@@ -1,10 +1,10 @@
-name: CONECT Automation - Backfill Histórico
+name: CONECT Automation - Backfill
 
 on:
   workflow_dispatch:
       inputs:
             data_inicio:
-                    description: 'Data de início (YYYY-MM-DD)'
+                    description: 'Data de inicio (YYYY-MM-DD)'
                             required: false
                                     default: '2026-06-01'
                                           data_fim:
@@ -17,38 +17,26 @@ on:
                                                                         runs-on: ubuntu-latest
 
                                                                                 steps:
-                                                                                      - name: 📥 Checkout repositório
+                                                                                      - name: Checkout repositorio
                                                                                               uses: actions/checkout@v4
                                                                                                     
-                                                                                                          - name: 🐍 Configurar Python
+                                                                                                          - name: Configurar Python
                                                                                                                   uses: actions/setup-python@v4
                                                                                                                           with:
                                                                                                                                     python-version: '3.13'
                                                                                                                                           
-                                                                                                                                                - name: 📦 Instalar dependências
+                                                                                                                                                - name: Instalar dependencias
                                                                                                                                                         run: |
                                                                                                                                                                   python -m pip install --upgrade pip
                                                                                                                                                                             pip install -r requirements.txt
                                                                                                                                                                                   
-                                                                                                                                                                                        - name: 🔐 Configurar variáveis de ambiente
-                                                                                                                                                                                                run: |
-                                                                                                                                                                                                          echo "CONECT_USER=${{ secrets.CONECT_USER }}" >> $GITHUB_ENV
-                                                                                                                                                                                                                    echo "CONECT_PASS=${{ secrets.CONECT_PASS }}" >> $GITHUB_ENV
-                                                                                                                                                                                                                              echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
-                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                          - name: 🚀 Executar backfill
-                                                                                                                                                                                                                                                  run: |
-                                                                                                                                                                                                                                                            echo "================================"
-                                                                                                                                                                                                                                                                      echo "🚀 INICIANDO BACKFILL HISTÓRICO"
-                                                                                                                                                                                                                                                                                echo "================================"
-                                                                                                                                                                                                                                                                                          python conect_automation_backfill.py
-                                                                                                                                                                                                                                                                                                  env:
-                                                                                                                                                                                                                                                                                                            CONECT_USER: ${{ secrets.CONECT_USER }}
-                                                                                                                                                                                                                                                                                                                      CONECT_PASS: ${{ secrets.CONECT_PASS }}
-                                                                                                                                                                                                                                                                                                                                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                                                                                                                                                                                                                                                                                                                                      
-                                                                                                                                                                                                                                                                                                                                            - name: 📊 Verificar resultado
-                                                                                                                                                                                                                                                                                                                                                    if: always()
-                                                                                                                                                                                                                                                                                                                                                            run: |
-                                                                                                                                                                                                                                                                                                                                                                      echo "✅ Backfill finalizado!"
-                                                                                                                                                                                                                                                                                                                                                                                echo "Verifique os arquivos em: https://github.com/${{ github.repository }}/tree/main/relatorios"
+                                                                                                                                                                                        - name: Executar backfill
+                                                                                                                                                                                                run: python conect_automation_backfill.py
+                                                                                                                                                                                                        env:
+                                                                                                                                                                                                                  CONECT_USER: ${{ secrets.CONECT_USER }}
+                                                                                                                                                                                                                            CONECT_PASS: ${{ secrets.CONECT_PASS }}
+                                                                                                                                                                                                                                      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                                  - name: Verificar resultado
+                                                                                                                                                                                                                                                          if: always()
+                                                                                                                                                                                                                                                                  run: echo "Backfill finalizado!"
