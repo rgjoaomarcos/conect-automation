@@ -1,42 +1,31 @@
-name: CONECT Automation - Backfill
+name: CONECT Backfill
 
 on:
   workflow_dispatch:
       inputs:
             data_inicio:
-                    description: 'Data de inicio (YYYY-MM-DD)'
+                    description: Start date
                             required: false
                                     default: '2026-06-01'
                                           data_fim:
-                                                  description: 'Data de fim (YYYY-MM-DD)'
+                                                  description: End date
                                                           required: false
                                                                   default: '2026-09-05'
 
                                                                   jobs:
                                                                     backfill:
                                                                         runs-on: ubuntu-latest
+                                                                            steps:
+                                                                                  - uses: actions/checkout@v4
 
-                                                                                steps:
-                                                                                      - name: Checkout repositorio
-                                                                                              uses: actions/checkout@v4
-                                                                                                    
-                                                                                                          - name: Configurar Python
-                                                                                                                  uses: actions/setup-python@v4
-                                                                                                                          with:
-                                                                                                                                    python-version: '3.13'
-                                                                                                                                          
-                                                                                                                                                - name: Instalar dependencias
-                                                                                                                                                        run: |
-                                                                                                                                                                  python -m pip install --upgrade pip
-                                                                                                                                                                            pip install -r requirements.txt
-                                                                                                                                                                                  
-                                                                                                                                                                                        - name: Executar backfill
-                                                                                                                                                                                                run: python conect_automation_backfill.py
-                                                                                                                                                                                                        env:
-                                                                                                                                                                                                                  CONECT_USER: ${{ secrets.CONECT_USER }}
-                                                                                                                                                                                                                            CONECT_PASS: ${{ secrets.CONECT_PASS }}
-                                                                                                                                                                                                                                      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                                                                                                                                                                                                                                            
-                                                                                                                                                                                                                                                  - name: Verificar resultado
-                                                                                                                                                                                                                                                          if: always()
-                                                                                                                                                                                                                                                                  run: echo "Backfill finalizado!"
+                                                                                              - uses: actions/setup-python@v4
+                                                                                                      with:
+                                                                                                                python-version: '3.13'
+                                                                                                                      
+                                                                                                                            - run: pip install -r requirements.txt
+                                                                                                                                  
+                                                                                                                                        - run: python conect_automation_backfill.py
+                                                                                                                                                env:
+                                                                                                                                                          CONECT_USER: ${{ secrets.CONECT_USER }}
+                                                                                                                                                                    CONECT_PASS: ${{ secrets.CONECT_PASS }}
+                                                                                                                                                                              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
