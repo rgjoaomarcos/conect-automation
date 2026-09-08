@@ -31,7 +31,8 @@ jobs:
 
       - name: Run backfill script
         env:
-          CONECT_TOKEN: ${{ secrets.CONECT_TOKEN }}
+          CONECT_USER: ${{ secrets.CONECT_USER }}
+          CONECT_PASSWORD: ${{ secrets.CONECT_PASSWORD }}
         run: |
           python conect_automation_backfill.py \
             --start-date "${{ github.event.inputs.start_date }}" \
