@@ -102,10 +102,10 @@ def extrair_medicos_escala(data):
         medicos = set()
         data_str = data.strftime("%d/%m/%Y")
         
-        for row in ws.iter_rows(min_row=2, values_only=True):
+        for row in ws.iter_rows(min_row=4, values_only=True):
             if row[0] and str(row[0]).strip() == data_str:
-                if row[4]:  # Coluna de plantonista
-                    medicos.add(str(row[4]).strip())
+                if row[5]:  # Coluna de plantonista
+                    medicos.add(str(row[5]).strip())
         
         return list(medicos)
     
