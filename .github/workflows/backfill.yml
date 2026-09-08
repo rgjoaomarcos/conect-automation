@@ -2,45 +2,45 @@ name: Backfill CONECT Productivity Reports
 
 on:
   workflow_dispatch:
-      inputs:
-            start_date:
-                    description: 'Start date (YYYY-MM-DD)'
-                            required: true
-                                    default: '2026-06-01'
-                                          end_date:
-                                                  description: 'End date (YYYY-MM-DD)'
-                                                          required: true
-                                                                  default: '2026-09-05'
+    inputs:
+      start_date:
+        description: 'Start date (YYYY-MM-DD)'
+        required: true
+        default: '2026-06-01'
+      end_date:
+        description: 'End date (YYYY-MM-DD)'
+        required: true
+        default: '2026-09-05'
 
-                                                                  jobs:
-                                                                    backfill:
-                                                                        runs-on: ubuntu-latest
-                                                                            steps:
-                                                                                  - name: Checkout repository
-                                                                                          uses: actions/checkout@v4
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-                                                                                                - name: Set up Python
-                                                                                                        uses: actions/setup-python@v4
-                                                                                                                with:
-                                                                                                                          python-version: '3.11'
-                                                                                                                          
-                                                                                                                                - name: Install dependencies
-                                                                                                                                        run: |
-                                                                                                                                                  python -m pip install --upgrade pip
-                                                                                                                                                            pip install -r requirements.txt
-                                                                                                                                                            
-                                                                                                                                                                  - name: Run backfill script
-                                                                                                                                                                          env:
-                                                                                                                                                                                    CONECT_TOKEN: ${{ secrets.CONECT_TOKEN }}
-                                                                                                                                                                                            run: |
-                                                                                                                                                                                                      python conect_automation_backfill.py \
-                                                                                                                                                                                                                  --start-date "${{ github.event.inputs.start_date }}" \
-                                                                                                                                                                                                                              --end-date "${{ github.event.inputs.end_date }}"
-                                                                                                                                                                                                                              
-                                                                                                                                                                                                                                    - name: Commit and push generated reports
-                                                                                                                                                                                                                                            run: |
-                                                                                                                                                                                                                                                      git config --local user.email "action@github.com"
-                                                                                                                                                                                                                                                                git config --local user.name "GitHub Action"
-                                                                                                                                                                                                                                                                          git add -A
-                                                                                                                                                                                                                                                                                    git commit -m "Backfill: Add CONECT reports from ${{ github.event.inputs.start_date }} to ${{ github.event.inputs.end_date }}" || echo "No changes to commit"
-                                                                                                                                                                                                                                                                                              git push
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run backfill script
+        env:
+          CONECT_TOKEN: ${{ secrets.CONECT_TOKEN }}
+        run: |
+          python conect_automation_backfill.py \
+            --start-date "${{ github.event.inputs.start_date }}" \
+            --end-date "${{ github.event.inputs.end_date }}"
+
+      - name: Commit and push generated reports
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add -A
+          git commit -m "Backfill: Add CONECT reports from ${{ github.event.inputs.start_date }} to ${{ github.event.inputs.end_date }}" || echo "No changes to commit"
+          git push
